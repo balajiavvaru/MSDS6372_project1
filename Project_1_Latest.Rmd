@@ -1,0 +1,915 @@
+---
+title: "Project_1"
+author: "Fabio_Savorgnan"
+date: "1/30/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+__Library
+
+```{r }
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+#library(SDMTools)
+library(readr)
+library(digest)
+library(ISLR)
+library(car) 
+library(leaps)
+library( Matrix)
+library(foreach)
+library(glmnet)
+library(VIM)
+library(mice)
+library(corrgram)
+library(car)
+library(tidyverse)
+library(plyr)
+#library(limma)
+library(gridExtra)
+```
+
+## Load the data
+
+```{r }
+df<- read.csv(file.choose())
+lifedata2014 = subset(df,Year==2014)
+lifedata2014 = lifedata2014 %>% select(c(Country))
+GDP = read.csv("C:/Users/BelajiAvvaru/Desktop/Docs/SMU/MSDS 6372/Project 1/GDP.csv", header=T, sep = ',')
+str(GDP)
+Population = read.csv("C:/Users/BelajiAvvaru/Desktop/Docs/SMU/MSDS 6372/Project 1/Population.csv", header=T, sep = ',')
+
+lifedata2014GDP = merge(lifedata2014, GDP, by.x = "Country", by.y = "Country", all.x = TRUE)
+summary(lifedata2014GDP)
+head(df)
+```
+
+
+
+
+
+```{r }
+#summary(df)
+summary(df$Year)
+summary(df$Life.expectancy)
+summary(df$Adult.Mortality)
+summary(df$infant.deaths)
+summary(df$Alcohol)
+summary(df$percentage.expenditure)
+summary(df$Hepatitis.B)
+summary(df$Measles)
+summary(df$BMI)
+summary(df$under.five.deaths)
+summary(df$Polio)
+summary(df$Total.expenditure)
+summary(df$Diphtheria)
+summary(df$HIV.AIDS)
+summary(df$GDP)
+summary(df$Population)
+summary(df$Total.expenditure)
+summary(df$thinness..1.19.years)
+summary(df$thinness.5.9.years)
+summary(df$Income.composition.of.resources)
+summary(df$Schooling)
+dim(df)
+```
+
+# Plot the data to perform DEA
+
+```{r visual1, fig.height=2}
+lifedata = subset(df,Year==2014)
+summary(lifedata)
+lifedatatest =lifedata %>% filter(lifedata$Measles > 1000)
+lifedatatest1 =lifedata %>% filter(lifedata$under.five.deaths > 1000)
+hist(lifedata$under.five.deaths)
+ 
+```
+
+
+# let's add another cateogorical varible for ANOVA analysis
+
+```{r}
+
+#Add new categorical variable "SchoolingLevel"
+lifedata$SchoolingLevel<-cut(lifedata$Schooling, seq(4,24,5), right=FALSE, labels=c("1","2", "3", "4"))
+
+
+```
+
+
+# plot life expactancy itself
+
+```{r}
+
+ggplot(data=lifedata, aes(lifedata$Life.expectancy)) + 
+  geom_histogram(binwidth = 1) + ggtitle("Histogram of Life Expectancy") + xlab("Life Expectancy")
+
+```
+
+# compare categorical variable vs life expectancy
+
+```{r}
+# histogram for life expectancy by status
+
+
+mu <- ddply(lifedata, "Status", summarise, grp.mean=mean(lifedata$Life.expectancy))
+#head(mu)
+
+
+
+
+p <- ggplot(lifedata, aes(x=lifedata$Life.expectancy, fill=lifedata$Status, color=lifedata$Status)) +
+  geom_histogram(position="identity")
+# Use semi-transparent fill
+p <- ggplot(lifedata, aes(x=lifedata$Life.expectancy, fill=lifedata$Status, color=lifedata$Status)) +
+  geom_histogram(position="identity", alpha=0.5)
+
+# Add mean lines
+p <- p+geom_vline(data=mu, aes(xintercept=grp.mean, color=Status),
+             linetype="dashed")
+
+p
+
+t(aggregate(lifedata$Life.expectancy~lifedata$Status,data=lifedata,summary))
+
+```
+
+#historgram vs school Level
+
+```{r}
+# histogram for life expectancy by status
+
+
+mu <- ddply(lifedata, "SchoolingLevel", summarise, grp.mean=mean(lifedata$Life.expectancy))
+#head(mu)
+
+
+
+
+p <- ggplot(lifedata, aes(x=lifedata$Life.expectancy, fill=lifedata$SchoolingLevel, color=lifedata$SchoolingLevel)) +
+  geom_histogram(position="identity")
+# Use semi-transparent fill
+p <- ggplot(lifedata, aes(x=lifedata$Life.expectancy, fill=lifedata$SchoolingLevel, color=lifedata$SchoolingLevel)) +
+  geom_histogram(position="identity", alpha=0.5)
+
+# Add mean lines
+p <- p+geom_vline(data=mu, aes(xintercept=grp.mean, color=SchoolingLevel),
+             linetype="dashed")
+
+p
+
+t(aggregate(lifedata$Life.expectancy~lifedata$SchoolingLevel,data=lifedata,summary))
+
+```
+
+
+
+# scatter plots of life expectancy vs. various data
+
+```{r}
+
+ggplot(lifedata, aes(x=lifedata$Adult.Mortality, y=lifedata$Life.expectancy)) + geom_point(data=lifedata) + geom_smooth(method=lm) +
+  xlab("Adult Mortality") + ylab("Life Expectancy") + ggtitle("Adult Mortality vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$infant.deaths, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Infact Deaths") + ylab("Life Expectancy") + ggtitle("Infant Deaths vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Alcohol, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Alcohol") + ylab("Life Expectancy") + ggtitle("Alcohol vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Hepatitis.B, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Hebapitis B") + ylab("Life Expectancy") + ggtitle("Hepatitis B  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Measles, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Measles") + ylab("Life Expectancy") + ggtitle("Measles  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$BMI, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("BMI") + ylab("Life Expectancy") + ggtitle("BMI  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$BMI, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=loess) +
+  xlab("BMI") + ylab("Life Expectancy") + ggtitle("BMI  vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$under.five.deaths, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Under Five Deaths") + ylab("Life Expectancy") + ggtitle("Under Five Deaths  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Polio, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Polio") + ylab("Life Expectancy") + ggtitle("Polio  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Total.expenditure, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Total Expenditure") + ylab("Life Expectancy") + ggtitle("Total Expenditure  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Diphtheria, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Diptheria") + ylab("Life Expectancy") + ggtitle("Diptheria  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$HIV.AIDS, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("HIV AIDs") + ylab("Life Expectancy") + ggtitle("HIV AIDs  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$GDP, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("GDP") + ylab("Life Expectancy") + ggtitle("GDP vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Population, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Population") + ylab("Life Expectancy") + ggtitle("Population vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$thinness.5.9.years, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Thinness 5 to 9 Years") + ylab("Life Expectancy") + ggtitle("Thinness 5 to 9 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness.5.9.years, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 5 to 9 Years") + ylab("Life Expectancy") + ggtitle("Thinness 5 to 9 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Income.composition.of.resources, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Income Composition of Resources") + ylab("Life Expectancy") + ggtitle("Income Composition of Resources vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Schooling, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Schooling") + ylab("Life Expectancy") + ggtitle("Schooling  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$percentage.expenditure, y=lifedata$Life.expectancy)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Percentage Expenditure") + ylab("Life Expectancy") + ggtitle("Percentage Expenditure  vs Life Expectancy")
+
+
+
+
+
+```
+
+
+
+# redo the plots, but this time include the SchoolingLevel as a grouping/color
+
+```{r}
+ggplot(lifedata, aes(x=lifedata$Adult.Mortality, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point(data=lifedata) + geom_smooth(method=lm) +
+  xlab("Adult Mortality") + ylab("Life Expectancy") + ggtitle("Adult Mortality vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$infant.deaths, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Infact Deaths") + ylab("Life Expectancy") + ggtitle("Infant Deaths vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Alcohol, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Alcohol") + ylab("Life Expectancy") + ggtitle("Alcohol vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Hepatitis.B, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Hebapitis B") + ylab("Life Expectancy") + ggtitle("Hepatitis B  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Measles, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Measles") + ylab("Life Expectancy") + ggtitle("Measles  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$BMI, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("BMI") + ylab("Life Expectancy") + ggtitle("BMI  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$BMI, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=loess) +
+  xlab("BMI") + ylab("Life Expectancy") + ggtitle("BMI  vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$under.five.deaths, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Under Five Deaths") + ylab("Life Expectancy") + ggtitle("Under Five Deaths  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Polio, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Polio") + ylab("Life Expectancy") + ggtitle("Polio  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Total.expenditure, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Total Expenditure") + ylab("Life Expectancy") + ggtitle("Total Expenditure  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Diphtheria, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Diptheria") + ylab("Life Expectancy") + ggtitle("Diptheria  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$HIV.AIDS, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("HIV AIDs") + ylab("Life Expectancy") + ggtitle("HIV AIDs  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$GDP, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("GDP") + ylab("Life Expectancy") + ggtitle("GDP vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Population, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Population") + ylab("Life Expectancy") + ggtitle("Population vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$thinness.5.9.years, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Thinness 5 to 9 Years") + ylab("Life Expectancy") + ggtitle("Thinness 5 to 9 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness.5.9.years, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 5 to 9 Years") + ylab("Life Expectancy") + ggtitle("Thinness 5 to 9 Years vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$Income.composition.of.resources, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Income Composition of Resources") + ylab("Life Expectancy") + ggtitle("Income Composition of Resources vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Schooling, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Schooling") + ylab("Life Expectancy") + ggtitle("Schooling  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$percentage.expenditure, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Percentage Expenditure") + ylab("Life Expectancy") + ggtitle("Percentage Expenditure  vs Life Expectancy")
+
+
+
+
+```
+
+
+
+# what countries are on this separate curve on life expectancy - very low adult mortality, and low life expectancy
+
+```{r}
+
+p <-  ggplot(lifedata, aes(x=lifedata$Adult.Mortality, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point(data=lifedata) + geom_smooth(method=lm) +
+  xlab("Adult Mortality") + ylab("Life Expectancy") + ggtitle("Adult Mortality vs Life Expectancy") +
+geom_label(
+    label=lifedata$Country,
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )
+p
+
+ggsave("Mortality vs Life Expectancy.jpg", plot = p, width = 20, height = 20, units = "in")
+
+
+
+p <- ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")+
+geom_label(
+    label=lifedata$Country,
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )
+p
+ggsave("Thinness1.19 vs Life Expectancy.jpg", plot = p, width = 20, height = 20, units = "in")
+
+
+
+```
+
+
+
+# redo the plots, but this time include the Status (developed, developing) as a grouping/color
+
+```{r}
+ggplot(lifedata, aes(x=lifedata$Adult.Mortality, y=lifedata$Life.expectancy, color=lifedata$SchoolingLevel)) + geom_point(data=lifedata) + geom_smooth(method=lm) +
+  xlab("Adult Mortality") + ylab("Life Expectancy") + ggtitle("Adult Mortality vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$infant.deaths, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Infact Deaths") + ylab("Life Expectancy") + ggtitle("Infant Deaths vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Alcohol, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Alcohol") + ylab("Life Expectancy") + ggtitle("Alcohol vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Hepatitis.B, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Hebapitis B") + ylab("Life Expectancy") + ggtitle("Hepatitis B  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Measles, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Measles") + ylab("Life Expectancy") + ggtitle("Measles  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$BMI, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("BMI") + ylab("Life Expectancy") + ggtitle("BMI  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$BMI, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=loess) +
+  xlab("BMI") + ylab("Life Expectancy") + ggtitle("BMI  vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$under.five.deaths, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Under Five Deaths") + ylab("Life Expectancy") + ggtitle("Under Five Deaths  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Polio, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Polio") + ylab("Life Expectancy") + ggtitle("Polio  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Total.expenditure, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Total Expenditure") + ylab("Life Expectancy") + ggtitle("Total Expenditure  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Diphtheria, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Diptheria") + ylab("Life Expectancy") + ggtitle("Diptheria  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$HIV.AIDS, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("HIV AIDs") + ylab("Life Expectancy") + ggtitle("HIV AIDs  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$GDP, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("GDP") + ylab("Life Expectancy") + ggtitle("GDP vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Population, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Population") + ylab("Life Expectancy") + ggtitle("Population vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness..1.19.years, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 1 to 19 Years") + ylab("Life Expectancy") + ggtitle("Thinness 1 to 19 Years vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$thinness.5.9.years, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Thinness 5 to 9 Years") + ylab("Life Expectancy") + ggtitle("Thinness 5 to 9 Years vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$thinness.5.9.years, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=loess) +
+  xlab("Thinness 5 to 9 Years") + ylab("Life Expectancy") + ggtitle("Thinness 5 to 9 Years vs Life Expectancy")
+
+
+ggplot(lifedata, aes(x=lifedata$Income.composition.of.resources, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Income Composition of Resources") + ylab("Life Expectancy") + ggtitle("Income Composition of Resources vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$Schooling, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Schooling") + ylab("Life Expectancy") + ggtitle("Schooling  vs Life Expectancy")
+
+ggplot(lifedata, aes(x=lifedata$percentage.expenditure, y=lifedata$Life.expectancy, color=lifedata$Status)) + geom_point() + geom_smooth(method=lm) +
+  xlab("Percentage Expenditure") + ylab("Life Expectancy") + ggtitle("Percentage Expenditure  vs Life Expectancy")
+
+
+
+
+```
+
+
+
+```{r }
+
+#df_filtered <- df %>% filter(Year == 2015 | Year == 2014)
+#head(df_filtered)
+
+```
+
+
+
+
+
+```{r }
+pairs(lifedata[,-c(1,2,3)])
+
+lifedata
+
+pairs(lifedata[,c(4,5,6,7,8,9,10)], col=lifedata$Status)
+pairs(lifedata[,c(4,11,12,13,14,15,16,17)], col=lifedata$Status)
+pairs(lifedata[,c(4,18,19,20,21,22)], col=lifedata$Status)
+
+
+```
+
+
+
+# Clean the data 
+
+```{r }
+lifedata = subset(df,Year==2014)
+#lifedata <-df
+# Verify any missing values in any variable
+lifedata[!complete.cases(lifedata), ]
+
+#Display missing-data patterns
+md.pattern(lifedata, plot=TRUE, rotate.names = TRUE)
+
+
+#Display missing-data in a bar-plot
+mice_plot <- aggr(lifedata, col=c('navyblue','yellow'),
+                  numbers=TRUE, sortVars=TRUE,
+                  labels=names(lifedata), cex.axis=.7,
+                  gap=3, ylab=c("Missing data","Pattern"))
+
+#Data frame with all continuous variables 
+#lifedata1 = lifedata %>% select(c(Country, Status, Life.expectancy, Adult.Mortality, Alcohol, Hepatitis.B, BMI, Polio, 
+#                                        Total.expenditure, Diphtheria, GDP,Population, Income.composition.of.resources, 
+#                                        thinness..1.19.years , thinness.5.9.years, Schooling, HIV.AIDS, under.five.deaths,
+#                                        Measles, percentage.expenditure, infant.deaths)) 
+
+lifedata1 = lifedata %>% select(-c(Year)) 
+
+#correlation plot for all continuous variables
+corrgram(lifedata1, order=TRUE,
+         upper.panel=panel.cor, lower.panel=panel.pie, main="Life expectancy correlogram")
+
+#Impute missing data with "CART"(Classification and Regression Trees) method
+imputed_Data2 <- mice(lifedata1, m=5, maxit =5, method = 'cart', seed = 500)
+
+#Data frame after imputation
+completeData1 <- mice::complete(imputed_Data2,)
+str(completeData1)
+
+#we readd this variable since it's based on schooliing, not really it's own varible
+completeData1$SchoolingLevel<-cut(completeData1$Schooling, seq(4,24,5), right=FALSE, labels=c("1","2", "3", "4"))
+
+#Display missing-data in a bar-plot after imputation
+mice_plot <- aggr(completeData1, col=c('navyblue','red'),
+                  numbers=TRUE, sortVars=TRUE,
+                  labels=names(completeData1), cex.axis=.7,
+                  gap=3, ylab=c("Missing data","Pattern"))
+
+
+```
+
+#Create a regression model to check VIF
+```{r }
+#str(completeData2)
+completeData2 = completeData1 %>% select(-c(Country, Status, SchoolingLevel)) 
+life.model1<-lm(Life.expectancy~Adult.Mortality+infant.deaths+Alcohol+percentage.expenditure+Hepatitis.B+Measles+
+            BMI+under.five.deaths+Polio+Total.expenditure+Diphtheria+HIV.AIDS+GDP+Population+
+            thinness..1.19.years+thinness.5.9.years+Income.composition.of.resources+Schooling , data=completeData2)
+
+summary(life.model1)
+vif(life.model1)
+
+```
+
+## Below variables are statistically significant 
+Adult.Mortality
+infant.deaths
+under.five.deaths
+Total.expenditure
+HIV.AIDS 
+Income.composition.of.resources
+
+## Below variables are colliniar variables
+infant.deaths
+under.five.deaths
+thinness..1.19.years
+thinness.5.9.years
+
+Variables  "infant.deaths" and "under.five.deaths" are strongly correlated with each other with correlation of 1. variable "under.five.deaths has a correlation of -0.26 with Life.expectancy where as variable "infant.deaths" has a correlation of -0.24. We can keep "under.five.deaths" and remove "infant.deaths" from the model
+
+Variables  "thinness..1.19.years" and "thinness.5.9.years" are strongly correlated with each other with correlation of 0.95. We can remove one of the variable from the model. Variable "thinness.5.9.years" has a correlation of -0.49 with Life.expectancy where as  "thinness..1.19.years" has a correlation of -0.46. We can keep thinness.5.9.years and remove thinness..1.19.years from the model
+
+```{r }
+#model without variables infant.deaths and thinness..1.19.years
+life.model2<-lm(Life.expectancy~Adult.Mortality+Alcohol+percentage.expenditure+Hepatitis.B+Measles+
+            BMI+under.five.deaths+Polio+Total.expenditure+Diphtheria+HIV.AIDS+GDP+Population+
+            thinness.5.9.years+Income.composition.of.resources+Schooling , data=completeData2)
+
+summary(life.model2)
+vif(life.model2)
+
+```
+
+## Below variables are statistically significant 
+Adult.Mortality
+Total.expenditure
+HIV.AIDS 
+Income.composition.of.resources
+
+## Multicolliniarity issue fixed after removing couple of variables from the model 
+
+# OLS model with above signifcant variables 
+
+```{r }
+#model without variables infant.deaths and thinness..1.19.years
+OLS.model<-lm(Life.expectancy~Adult.Mortality+Total.expenditure+HIV.AIDS+Income.composition.of.resources, data=completeData2)
+
+summary(OLS.model)
+plot(OLS.model)
+confint(OLS.model)
+vif(OLS.model)
+```
+
+# ASE with OLS
+
+```{r }
+OLStrain <- completeData2 [1:120, ]
+OLStest <-completeData2 [121:183, ]
+OLSModel1<-lm(Life.expectancy~Adult.Mortality+Total.expenditure+HIV.AIDS+Income.composition.of.resources, data=completeData2)
+pred<-predict(OLSModel1, newdata=OLStest)
+ASE<-mean((OLStest$Life.expectancy-pred)^2)
+ASE
+
+```
+
+# Model selection "Forward"
+
+```{r }
+completeData2 = completeData1 %>% select(-c(Country, Status, SchoolingLevel)) 
+reg.fwd=regsubsets(Life.expectancy~., data=completeData2, method="forward", nvmax=20)
+
+reg.fwd
+```
+
+
+
+# Plot ASE
+
+```{r }
+set.seed(1234)
+index<-sample(1:dim(completeData2)[1], 100, replace=F)
+fwdtrain<-completeData2[index,]
+fwdtest<-completeData2[-index,]
+reg.fwd=regsubsets(Life.expectancy~., data=completeData2, method="forward", nvmax=15)
+
+reg.fwd
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+testASE<-c()
+#note my index is to 20 since that what I set it in regsubsets
+for (i in 1:15){
+  predictions<-predict.regsubsets(object=reg.fwd,newdata=fwdtest,id=i) 
+  testASE[i]<-mean((fwdtest$Life.expectancy-predictions)^2)
+}
+
+par(mfrow=c(1,1))
+plot(1:15,testASE,type="l",xlab="# of predictors",ylab="test vs train ASE", ylim=c(5, 30))
+index<-which(testASE==min(testASE))
+points(index,testASE[index],col="red",pch=10)
+rss<-summary(reg.fwd)$rss
+lines(1:15,rss/100,lty=3,col="blue") 
+```
+
+### BIC, adj R-squared and RSS plots for forward selection
+
+```{r }
+par(mfrow=c(1,3))
+bics<-summary(reg.fwd)$bic
+plot(1:15,bics,type="l",ylab="BIC",xlab="# of predictors")
+index<-which(bics==min(bics))
+points(index,bics[index],col="red",pch=10)
+
+adjr2<-summary(reg.fwd)$adjr2
+plot(1:15,adjr2,type="l",ylab="Adjusted R-squared",xlab="# of predictors")
+index<-which(adjr2==max(adjr2))
+points(index,adjr2[index],col="red",pch=10)
+
+rss<-summary(reg.fwd)$rss
+plot(1:15,rss,type="l",ylab="train RSS",xlab="# of predictors")
+index<-which(rss==min(rss))
+points(index,rss[index],col="red",pch=10)
+``` 
+
+
+# Pick up the model
+```{r }
+
+m1<-coef(reg.fwd,4)
+m1
+
+
+```
+
+
+
+# Model selection "stepwise"
+
+```{r }
+completeData2 = completeData1 %>% select(-c(Country, Status, SchoolingLevel)) 
+reg.stp=regsubsets(Life.expectancy~., data=completeData2, method="seqrep", nvmax=20)
+
+reg.stp
+```
+
+
+
+# Plot ASE
+
+```{r }
+set.seed(1234)
+index<-sample(1:dim(completeData2)[1], 100, replace=F)
+stptrain<-completeData2[index,]
+stptest<-completeData2[-index,]
+reg.stp=regsubsets(Life.expectancy~., data=completeData2, method="seqrep", nvmax=15)
+
+reg.fwd
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+stptestASE<-c()
+#note my index is to 20 since that what I set it in regsubsets
+for (i in 1:15){
+  predictions<-predict.regsubsets(object=reg.stp,newdata=stptest,id=i) 
+  stptestASE[i]<-mean((stptest$Life.expectancy-predictions)^2)
+}
+
+par(mfrow=c(1,1))
+plot(1:15,stptestASE,type="l",xlab="iteration #",ylab="test vs train ASE", ylim=c(5, 50))
+index<-which(stptestASE==min(stptestASE))
+points(index,stptestASE[index],col="red",pch=10)
+stprss<-summary(reg.stp)$rss
+lines(1:15,stprss/100,lty=3,col="blue") 
+```
+
+### BIC, adj R-squared and RSS plots for stepwise selection
+
+```{r }
+
+par(mfrow=c(1,3))
+bics<-summary(reg.stp)$bic
+plot(1:15,bics,type="l",ylab="BIC",xlab="iteration #")
+index<-which(bics==min(bics))
+points(index,bics[index],col="red",pch=10)
+
+adjr2<-summary(reg.stp)$adjr2
+plot(1:15,adjr2,type="l",ylab="Adjusted R-squared",xlab="iteration #")
+index<-which(adjr2==max(adjr2))
+points(index,adjr2[index],col="red",pch=10)
+
+rss<-summary(reg.stp)$rss
+plot(1:15,rss,type="l",ylab="train RSS",xlab="#iteration #")
+index<-which(rss==min(rss))
+points(index,rss[index],col="red",pch=10)
+``` 
+
+
+########################################################################################################################################################################################################################################################################
+
+
+
+```{r }
+
+ms<-coef(reg.stp,4)
+ms
+
+plot(reg.stp)
+
+```
+
+# LASSO
+
+
+
+```{r,echo=T}
+set.seed(1234)
+index<-sample(1:dim(completeData2)[1],100,replace=F)
+train<-completeData2[index,]
+test<-completeData2[-index,]
+#reg.fwd=regsubsets(log(AvgWinnings)~.,data=train,method="forward",nvmax=20)
+
+```
+
+
+
+
+
+```{r }
+require("glmnet")
+#Formatting data for GLM net
+x=model.matrix(Life.expectancy~Adult.Mortality+Hepatitis.B+BMI+I(BMI^2)+I(BMI^3)+Polio+Total.expenditure+Diphtheria+GDP+Population
+           +Income.composition.of.resources+thinness..1.19.years + I(thinness..1.19.years^2)+thinness.5.9.years+Schooling+HIV.AIDS
+           +percentage.expenditure,train)[,-1]
+y=train$Life.expectancy
+
+xtest<-model.matrix(Life.expectancy~Adult.Mortality+Hepatitis.B+BMI+I(BMI^2)+I(BMI^3)+Polio+Total.expenditure+Diphtheria+GDP+Population
+           +Income.composition.of.resources+thinness..1.19.years + I(thinness..1.19.years^2)+thinness.5.9.years+Schooling+HIV.AIDS
+           +percentage.expenditure,test)[,-1]
+ytest<-test$Life.expectancy
+
+
+
+grid=10^seq(10,-2, length =100)
+lasso.mod=glmnet(x,y,alpha=1, lambda =grid)
+
+cv.out=cv.glmnet(x,y,alpha=1) #alpha=1 performs LASSO
+plot(cv.out)
+bestlambda<-cv.out$lambda.min  #Optimal penalty parameter.  You can make this call visually.
+lasso.pred=predict (lasso.mod ,s=bestlambda ,newx=xtest)
+
+testMSE_LASSO<-mean((ytest-lasso.pred)^2)
+testMSE_LASSO
+
+
+
+```
+
+
+
+```{r}
+coef(lasso.mod,s=bestlambda)
+```
+
+
+
+######################################################################################################################################################################## 2-Way ANOVA ###################################################################################
+
+
+```{r }
+#Run the lasso model
+lasso.model<-lm(Life.expectancy~Adult.Mortality+Total.expenditure+HIV.AIDS+Income.composition.of.resources+ BMI + Diphtheria + Population +thinness..1.19.years + Hepatitis.B, data=completeData2)
+
+summary(lasso.model)
+plot(lasso.model)
+confint(lasso.model)
+vif(lasso.model)
+```
+
+
+
+# Test the lasso model
+```{r }
+lassotrain <- completeData2 [1:120, ]
+lassotest <-completeData2 [121:183, ]
+
+lasso.model<-lm(Life.expectancy~Adult.Mortality+Total.expenditure+HIV.AIDS+Income.composition.of.resources+ BMI + Diphtheria + Population +thinness..1.19.years + I(thinness..1.19.years^2) + Hepatitis.B, data=completeData2)
+
+pred<-predict(lasso.model, newdata=lassotest)
+ASE<-mean((lassotest$Life.expectancy-pred)^2)
+ASE
+
+```
+
+
+# Coding the categorical variable for the 2 way anova
+
+```{r visual1, fig.height=2}
+
+lifedata = subset(df,Year==2014)
+lifedata <-df
+lifedata$SchoolingLevel<-cut(lifedata$Schooling, seq(5,30,5), right=FALSE, labels=c(1:6))
+par(mfrow=c(1,3))
+
+```
+
+
+
+
+# Prepare data for 2-way ANOVA
+```{r}
+lifeanovadata = completeData1 %>% select(c(Status, SchoolingLevel, Life.expectancy)) 
+str(lifeanovadata)
+```
+
+# compute Mean SD
+```{r}
+
+mysummary1<-function(x){
+  result<-c(length(x),mean(x),sd(x))
+  names(result)<-c("N","Mean","SD")
+  return(result)
+}
+sumstats1<-aggregate(Life.expectancy~SchoolingLevel*Status,data=lifeanovadata,mysummary1)
+sumstats1<-cbind(sumstats1[,1:2],sumstats1[,-(1:2)])
+sumstats1
+```
+
+# Means plot using the standard deviations (SD) 
+
+```{r}
+ggplot(sumstats1,aes(x=SchoolingLevel,y=Mean,group=Status,colour=Status))+
+  ylab("Life expectancy")+
+  geom_line()+
+  geom_point()+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1)
+``` 
+
+# ANOVA model
+
+```{r}
+model.fit<-aov(Life.expectancy~Status+SchoolingLevel+Status:SchoolingLevel,data=lifeanovadata)
+summary(model.fit)
+par(mfrow=c(1,2))
+plot(model.fit$fitted.values,model.fit$residuals,ylab="Resdiduals",xlab="Fitted")
+qqnorm(model.fit$residuals)
+```
+
+
+
+# I different dysplay of the plot for the 2 way anova
+
+```{r}
+myfits<-data.frame(fitted.values=model.fit$fitted.values,residuals=model.fit$residuals)
+
+#Residual vs Fitted
+plot1<-ggplot(myfits,aes(x=fitted.values,y=residuals))+ylab("Residuals")+
+  xlab("Predicted")+geom_point()
+
+#QQ plot of residuals  #Note the diagonal abline is only good for qqplots of normal data.
+plot2<-ggplot(myfits,aes(sample=residuals))+
+  stat_qq()+geom_abline(intercept=mean(myfits$residuals), slope = sd(myfits$residuals))
+
+#Histogram of residuals
+plot3<-ggplot(myfits, aes(x=residuals)) + 
+  geom_histogram(aes(y=..density..),binwidth=1,color="black", fill="gray")+
+  geom_density(alpha=.1, fill="red")
+
+grid.arrange(plot1, plot2,plot3, ncol=3)
+
+
+```
+
+
+
+
+
+
+```{r}
+
+model.fit1<-aov(Life.expectancy~Status+SchoolingLevel,data=lifeanovadata)
+Anova(model.fit1,type=3)
+```
+
+```{r}
+library(car)
+TukeyHSD(model.fit1,"Status",conf.level=.95)
+TukeyHSD(model.fit1,"SchoolingLevel",conf.level=.95)
+```
